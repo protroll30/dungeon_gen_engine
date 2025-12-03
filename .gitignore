@@ -59,6 +59,9 @@ proj4*/data/
 proj4*/*.zip
 proj4*/*.txt
 
+# Project 5 - Save files
+save*.txt
+
 # Library
 *.jar
 
