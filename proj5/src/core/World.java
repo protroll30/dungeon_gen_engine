@@ -1,5 +1,6 @@
 package core;
 
+import edu.princeton.cs.algs4.WeightedQuickUnionUF;
 import tileengine.TETile;
 import tileengine.Tileset;
 import utils.RandomUtils;
@@ -7,20 +8,20 @@ import utils.RandomUtils;
 import java.util.*;
 
 public class World {
-    private static final int WIDTH = 80;
-    private static final int HEIGHT = 50;
-    private static final int MIN_CAVERN_DISTANCE = 6;
-    private static final int MIN_CAVERNS = 12;
-    private static final int MAX_CAVERNS = 20;
+    private static final int WIDTH = 200;
+    private static final int HEIGHT = 120;
+    private static final int MIN_CAVERN_DISTANCE = 8;
+    private static final int MIN_CAVERNS = 30;
+    private static final int MAX_CAVERNS = 45;
     private static final int MIN_CAVERN_SIZE = 20;
     private static final int MAX_CAVERN_SIZE = 80;
-    private static final double EXTRA_TUNNEL_PROB = 0.25;
+    private static final double EXTRA_TUNNEL_PROB = 0.15;
 
     private final Random rng;
     private final TETile[][] world;
     private final List<Position> cavernCenters;
     private final List<Cavern> caverns;
-    private UnionFind connectivityTracker;
+    private WeightedQuickUnionUF connectivityTracker;
 
     public World(long seed) {
         this.rng = new Random(seed);
@@ -34,7 +35,6 @@ public class World {
         initializeGrid();
         pickCaveCenters();
         digCaves();
-        System.out.println("Number of rooms: " + caverns.size());
         connectCaves();
         buildWalls();
         ensureConnectivity();
@@ -96,15 +96,28 @@ public class World {
 
     private void digRectangularRoom(Cavern cavern, Position center) {
         int minWidth = 5;
-        int maxWidth = 15;
+        int maxWidth = 12;
         int minHeight = 5;
-        int maxHeight = 12;
+        int maxHeight = 10;
         
         int width = RandomUtils.uniform(rng, minWidth, maxWidth + 1);
         int height = RandomUtils.uniform(rng, minHeight, maxHeight + 1);
         
         int startX = Math.max(1, Math.min(center.x - width / 2, WIDTH - width - 1));
         int startY = Math.max(1, Math.min(center.y - height / 2, HEIGHT - height - 1));
+        
+        boolean canPlace = true;
+        for (int x = startX; x < startX + width; x++) {
+            for (int y = startY; y < startY + height; y++) {
+                if (isValidPosition(x, y) && world[x][y].description().equals("floor")) {
+                    canPlace = false;
+                    break;
+                }
+            }
+            if (!canPlace) break;
+        }
+        
+        if (!canPlace) return;
         
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
@@ -118,11 +131,24 @@ public class World {
     }
 
     private void digCompactRoom(Cavern cavern, Position start, int targetSize) {
-        int width = RandomUtils.uniform(rng, 5, 12);
-        int height = RandomUtils.uniform(rng, 5, 10);
+        int width = RandomUtils.uniform(rng, 5, 10);
+        int height = RandomUtils.uniform(rng, 5, 8);
         
         int startX = Math.max(1, Math.min(start.x - width / 2, WIDTH - width - 1));
         int startY = Math.max(1, Math.min(start.y - height / 2, HEIGHT - height - 1));
+        
+        boolean canPlace = true;
+        for (int x = startX; x < startX + width; x++) {
+            for (int y = startY; y < startY + height; y++) {
+                if (isValidPosition(x, y) && world[x][y].description().equals("floor")) {
+                    canPlace = false;
+                    break;
+                }
+            }
+            if (!canPlace) break;
+        }
+        
+        if (!canPlace) return;
         
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
@@ -150,7 +176,7 @@ public class World {
 
         Collections.sort(edges);
 
-        UnionFind uf = new UnionFind(caverns.size());
+        WeightedQuickUnionUF uf = new WeightedQuickUnionUF(caverns.size());
         List<Edge> mstEdges = new ArrayList<>();
         Map<Integer, Integer> roomConnections = new HashMap<>();
 
@@ -229,31 +255,84 @@ public class World {
             return;
         }
         
-        boolean horizontalFirst = RandomUtils.bernoulli(rng);
+        int totalDistance = Math.abs(dx) + Math.abs(dy);
         
-        int midX, midY;
-        if (horizontalFirst) {
-            int minX = Math.min(start.x, end.x);
-            int maxX = Math.max(start.x, end.x);
-            if (maxX - minX > 2) {
-                midX = RandomUtils.uniform(rng, minX + 1, maxX);
+        if (totalDistance <= 8) {
+            boolean horizontalFirst = RandomUtils.bernoulli(rng);
+            int midX, midY;
+            if (horizontalFirst) {
+                int minX = Math.min(start.x, end.x);
+                int maxX = Math.max(start.x, end.x);
+                if (maxX - minX > 2) {
+                    midX = RandomUtils.uniform(rng, minX + 1, maxX);
+                } else {
+                    midX = (start.x + end.x) / 2;
+                }
+                midY = start.y;
             } else {
-                midX = (start.x + end.x) / 2;
+                int minY = Math.min(start.y, end.y);
+                int maxY = Math.max(start.y, end.y);
+                if (maxY - minY > 2) {
+                    midY = RandomUtils.uniform(rng, minY + 1, maxY);
+                } else {
+                    midY = (start.y + end.y) / 2;
+                }
+                midX = start.x;
             }
-            midY = start.y;
+            digStraightLine(start.x, start.y, midX, midY);
+            digStraightLine(midX, midY, end.x, end.y);
         } else {
-            int minY = Math.min(start.y, end.y);
-            int maxY = Math.max(start.y, end.y);
-            if (maxY - minY > 2) {
-                midY = RandomUtils.uniform(rng, minY + 1, maxY);
+            int midX, midY;
+            boolean horizontalFirst = RandomUtils.bernoulli(rng);
+            if (horizontalFirst) {
+                int minX = Math.min(start.x, end.x);
+                int maxX = Math.max(start.x, end.x);
+                int lowerBound = minX + Math.abs(dx) / 3;
+                int upperBound = maxX - Math.abs(dx) / 3;
+                if (upperBound > lowerBound) {
+                    midX = RandomUtils.uniform(rng, lowerBound, upperBound);
+                } else {
+                    midX = (start.x + end.x) / 2;
+                }
+                midY = start.y;
             } else {
-                midY = (start.y + end.y) / 2;
+                int minY = Math.min(start.y, end.y);
+                int maxY = Math.max(start.y, end.y);
+                int lowerBound = minY + Math.abs(dy) / 3;
+                int upperBound = maxY - Math.abs(dy) / 3;
+                if (upperBound > lowerBound) {
+                    midY = RandomUtils.uniform(rng, lowerBound, upperBound);
+                } else {
+                    midY = (start.y + end.y) / 2;
+                }
+                midX = start.x;
             }
-            midX = start.x;
+            
+            int secondMidX, secondMidY;
+            if (horizontalFirst) {
+                secondMidX = midX;
+                int minY = Math.min(midY, end.y);
+                int maxY = Math.max(midY, end.y);
+                if (maxY - minY > 2) {
+                    secondMidY = RandomUtils.uniform(rng, minY + 1, maxY);
+                } else {
+                    secondMidY = (midY + end.y) / 2;
+                }
+            } else {
+                secondMidY = midY;
+                int minX = Math.min(midX, end.x);
+                int maxX = Math.max(midX, end.x);
+                if (maxX - minX > 2) {
+                    secondMidX = RandomUtils.uniform(rng, minX + 1, maxX);
+                } else {
+                    secondMidX = (midX + end.x) / 2;
+                }
+            }
+            
+            digStraightLine(start.x, start.y, midX, midY);
+            digStraightLine(midX, midY, secondMidX, secondMidY);
+            digStraightLine(secondMidX, secondMidY, end.x, end.y);
         }
-        
-        digStraightLine(start.x, start.y, midX, midY);
-        digStraightLine(midX, midY, end.x, end.y);
     }
     
     private void digStraightLine(int x1, int y1, int x2, int y2) {
@@ -262,7 +341,7 @@ public class World {
         
         while (x != x2 || y != y2) {
             if (isValidPosition(x, y)) {
-                if (world[x][y] == Tileset.NOTHING || world[x][y] == Tileset.WALL) {
+                if (world[x][y] == Tileset.NOTHING || world[x][y] == Tileset.WALL || world[x][y].description().equals("wall")) {
                     world[x][y] = Tileset.FLOOR;
                 }
             }
@@ -274,7 +353,7 @@ public class World {
         }
         
         if (isValidPosition(x2, y2)) {
-            if (world[x2][y2] == Tileset.NOTHING || world[x2][y2] == Tileset.WALL) {
+            if (world[x2][y2] == Tileset.NOTHING || world[x2][y2] == Tileset.WALL || world[x2][y2].description().equals("wall")) {
                 world[x2][y2] = Tileset.FLOOR;
             }
         }
@@ -285,12 +364,12 @@ public class World {
 
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
-                if (world[x][y] == Tileset.FLOOR) {
+                if (world[x][y].description().equals("floor")) {
                     for (int i = 0; i < 8; i++) {
                         int nx = x + dx[i];
                         int ny = y + dy[i];
                         if (isValidPosition(nx, ny) && world[nx][ny] == Tileset.NOTHING) {
-                            world[nx][ny] = Tileset.WALL;
+                        world[nx][ny] = Tileset.WALL;
                         }
                     }
                 }
@@ -309,7 +388,7 @@ public class World {
 
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
-                if (world[x][y] == Tileset.FLOOR) {
+                if (world[x][y].description().equals("floor")) {
                     Position pos = new Position(x, y);
                     floorTiles.add(pos);
                     positionToIndex.put(pos, floorTiles.size() - 1);
@@ -319,7 +398,8 @@ public class World {
 
         if (floorTiles.isEmpty()) return true;
 
-        connectivityTracker = new UnionFind(floorTiles.size());
+        connectivityTracker = new WeightedQuickUnionUF(floorTiles.size());
+        int components = floorTiles.size();
 
         int[] dx = {0, 0, 1, -1};
         int[] dy = {1, -1, 0, 0};
@@ -332,12 +412,15 @@ public class World {
                 Position neighbor = new Position(nx, ny);
                 if (positionToIndex.containsKey(neighbor)) {
                     int idx2 = positionToIndex.get(neighbor);
-                    connectivityTracker.union(idx1, idx2);
+                    if (!connectivityTracker.connected(idx1, idx2)) {
+                        connectivityTracker.union(idx1, idx2);
+                        components--;
+                    }
                 }
             }
         }
 
-        return connectivityTracker.getComponents() == 1;
+        return components == 1;
     }
 
     private void connectDisconnectedComponents() {
@@ -346,7 +429,7 @@ public class World {
 
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
-                if (world[x][y] == Tileset.FLOOR) {
+                if (world[x][y].description().equals("floor")) {
                     Position pos = new Position(x, y);
                     floorTiles.add(pos);
                     positionToIndex.put(pos, floorTiles.size() - 1);
@@ -356,7 +439,7 @@ public class World {
 
         if (floorTiles.isEmpty()) return;
 
-        connectivityTracker = new UnionFind(floorTiles.size());
+        connectivityTracker = new WeightedQuickUnionUF(floorTiles.size());
 
         int[] dx = {0, 0, 1, -1};
         int[] dy = {1, -1, 0, 0};
@@ -369,7 +452,9 @@ public class World {
                 Position neighbor = new Position(nx, ny);
                 if (positionToIndex.containsKey(neighbor)) {
                     int idx2 = positionToIndex.get(neighbor);
-                    connectivityTracker.union(idx1, idx2);
+                    if (!connectivityTracker.connected(idx1, idx2)) {
+                        connectivityTracker.union(idx1, idx2);
+                    }
                 }
             }
         }
@@ -403,7 +488,7 @@ public class World {
 
             for (int x = 1; x < WIDTH - 1; x++) {
                 for (int y = 1; y < HEIGHT - 1; y++) {
-                    if (world[x][y] == Tileset.FLOOR) {
+                    if (world[x][y].description().equals("floor")) {
                         int floorNeighbors = 0;
                         Position neighborPos = null;
                         for (int i = 0; i < 4; i++) {
@@ -465,7 +550,7 @@ public class World {
 
         for (int x = 1; x < WIDTH - 1; x++) {
             for (int y = 1; y < HEIGHT - 1; y++) {
-                if (world[x][y] == Tileset.FLOOR) {
+                if (world[x][y].description().equals("floor")) {
                     int[] dx = {0, 0, 1, -1};
                     int[] dy = {1, -1, 0, 0};
                     for (int i = 0; i < 4; i++) {
@@ -501,7 +586,7 @@ public class World {
                             }
                         }
                         
-                        if (floorCount == 8) {
+                        if (floorCount == 8 || floorCount == 0) {
                             toRemove.add(new Position(x, y));
                         }
                     }
@@ -525,6 +610,45 @@ public class World {
 
     public static int getHeight() {
         return HEIGHT;
+    }
+
+    public Position getAvatarStartPosition() {
+        List<Position> floorTiles = new ArrayList<>();
+        for (int x = 0; x < WIDTH; x++) {
+            for (int y = 0; y < HEIGHT; y++) {
+                if (world[x][y].description().equals("floor")) {
+                    floorTiles.add(new Position(x, y));
+                }
+            }
+        }
+        if (floorTiles.isEmpty()) {
+            return new Position(WIDTH / 2, HEIGHT / 2);
+        }
+        Collections.sort(floorTiles, new java.util.Comparator<Position>() {
+            @Override
+            public int compare(Position a, Position b) {
+                if (a.y != b.y) {
+                    return Integer.compare(a.y, b.y);
+                }
+                return Integer.compare(a.x, b.x);
+            }
+        });
+        return floorTiles.get(0);
+    }
+
+    public TETile[][] getWorldWithAvatar(Position avatarPos) {
+        TETile[][] worldWithAvatar = new TETile[WIDTH][HEIGHT];
+        for (int x = 0; x < WIDTH; x++) {
+            for (int y = 0; y < HEIGHT; y++) {
+                worldWithAvatar[x][y] = world[x][y];
+            }
+        }
+        worldWithAvatar[avatarPos.x][avatarPos.y] = Tileset.AVATAR;
+        return worldWithAvatar;
+    }
+
+    public boolean canMoveTo(int x, int y) {
+        return isValidPosition(x, y) && world[x][y].description().equals("floor");
     }
 
     private boolean isValidPosition(int x, int y) {

@@ -83,8 +83,12 @@ public class TERenderer {
      * @param world the 2D TETile[][] array to render
      */
     public void renderFrame(TETile[][] world) {
+        renderFrame(world, 0, 0);
+    }
+
+    public void renderFrame(TETile[][] world, int scrollXOffset, int scrollYOffset) {
         StdDraw.clear(new Color(0, 0, 0));
-        drawTiles(world);
+        drawTiles(world, scrollXOffset, scrollYOffset);
         StdDraw.show();
     }
 
@@ -93,15 +97,26 @@ public class TERenderer {
      * @param world the 2D TETile[][] array to render
      */
     public void drawTiles(TETile[][] world) {
+        drawTiles(world, 0, 0);
+    }
+
+    public void drawTiles(TETile[][] world, int scrollXOffset, int scrollYOffset) {
         int numXTiles = world.length;
         int numYTiles = world[0].length;
-        for (int x = 0; x < numXTiles; x += 1) {
-            for (int y = 0; y < numYTiles; y += 1) {
+        int startX = Math.max(0, scrollXOffset);
+        int endX = Math.min(numXTiles, scrollXOffset + width);
+        int startY = Math.max(0, scrollYOffset);
+        int endY = Math.min(numYTiles, scrollYOffset + height);
+        
+        for (int x = startX; x < endX; x += 1) {
+            for (int y = startY; y < endY; y += 1) {
                 if (world[x][y] == null) {
                     throw new IllegalArgumentException("Tile at position x=" + x + ", y=" + y
                             + " is null.");
                 }
-                world[x][y].draw(x + xOffset, y + yOffset);
+                int screenX = x - scrollXOffset + xOffset;
+                int screenY = y - scrollYOffset + yOffset;
+                world[x][y].draw(screenX, screenY);
             }
         }
     }
