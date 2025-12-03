@@ -35,8 +35,14 @@ public class Main {
                 GameState savedState = loadGame(SAVE_FILE);
                 if (savedState != null) {
                     World world = new World(savedState.seed);
-                    playGame(ter, world, savedState.avatarPos, savedState.seed);
+                    Position avatarPos = savedState.avatarPos;
+                    if (!world.canMoveTo(avatarPos.x, avatarPos.y)) {
+                        avatarPos = world.getAvatarStartPosition();
+                    }
+                    playGame(ter, world, avatarPos, savedState.seed);
                 }
+            } else if (choice == 't') {
+                showTutorial(ter);
             } else if (choice == 'q') {
                 System.exit(0);
             }
@@ -54,6 +60,7 @@ public class Main {
         StdDraw.setFont(font);
         StdDraw.text(DISPLAY_WIDTH / 2.0, TOTAL_HEIGHT * 0.5, "New Game (N)");
         StdDraw.text(DISPLAY_WIDTH / 2.0, TOTAL_HEIGHT * 0.4, "Load Game (L)");
+        StdDraw.text(DISPLAY_WIDTH / 2.0, TOTAL_HEIGHT * 0.35, "Tutorial (T)");
         StdDraw.text(DISPLAY_WIDTH / 2.0, TOTAL_HEIGHT * 0.3, "Quit (Q)");
         
         StdDraw.show();
@@ -61,7 +68,7 @@ public class Main {
         while (true) {
             if (StdDraw.hasNextKeyTyped()) {
                 char key = Character.toLowerCase(StdDraw.nextKeyTyped());
-                if (key == 'n' || key == 'l' || key == 'q') {
+                if (key == 'n' || key == 'l' || key == 'q' || key == 't') {
                     return key;
                 }
             }
@@ -100,10 +107,64 @@ public class Main {
         }
     }
 
+    private static void showTutorial(TERenderer ter) {
+        StdDraw.clear(Color.BLACK);
+        Font titleFont = new Font("Monaco", Font.BOLD, 24);
+        StdDraw.setFont(titleFont);
+        StdDraw.setPenColor(Color.WHITE);
+        StdDraw.text(DISPLAY_WIDTH / 2.0, TOTAL_HEIGHT * 0.85, "Controls");
+        
+        Font font = new Font("Monaco", Font.PLAIN, 16);
+        StdDraw.setFont(font);
+        
+        double yPos = TOTAL_HEIGHT * 0.7;
+        double lineSpacing = 1.2;
+        
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "Movement:");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "W - Move Up");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "S - Move Down");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "A - Move Left");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "D - Move Right");
+        yPos -= lineSpacing * 1.5;
+        
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "Commands (press : first):");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, ":Q - Save and Quit");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, ":M - Save and Return to Menu");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, ":N - Enter Seed for New World");
+        yPos -= lineSpacing * 1.5;
+        
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "Other:");
+        yPos -= lineSpacing;
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "Mouse Hover - View Tile Description");
+        yPos -= lineSpacing * 2;
+        
+        Font smallFont = new Font("Monaco", Font.PLAIN, 12);
+        StdDraw.setFont(smallFont);
+        StdDraw.text(DISPLAY_WIDTH / 2.0, yPos, "Press any key to return to menu");
+        
+        StdDraw.show();
+        
+        while (true) {
+            if (StdDraw.hasNextKeyTyped()) {
+                StdDraw.nextKeyTyped();
+                return;
+            }
+            StdDraw.pause(20);
+        }
+    }
+
     private static void playGame(TERenderer ter, World world, Position avatarPos, long seed) {
         boolean colonPressed = false;
-        int xOffset = 0;
-        int yOffset = 0;
+        int scrollThreshold = 8;
+        int xOffset = Math.max(0, Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH / 2));
+        int yOffset = Math.max(0, Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT / 2));
         String saveMessage = null;
         int saveMessageFrames = 0;
         
@@ -121,12 +182,12 @@ public class Main {
                         saveGame(seed, avatarPos, SAVE_FILE);
                         return;
                     } else if (key == 'n') {
-                        long newSeed = System.currentTimeMillis();
+                        long newSeed = showSeedEntry(ter);
                         world = new World(newSeed);
                         avatarPos = world.getAvatarStartPosition();
                         seed = newSeed;
-                        xOffset = 0;
-                        yOffset = 0;
+                        xOffset = Math.max(0, Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH / 2));
+                        yOffset = Math.max(0, Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT / 2));
                         saveMessage = "New world generated";
                         saveMessageFrames = 60;
                     }
@@ -149,17 +210,34 @@ public class Main {
                     if (world.canMoveTo(newPos.x, newPos.y)) {
                         avatarPos = newPos;
                         
-                        int scrollThreshold = 8;
-                        if (avatarPos.x - xOffset < scrollThreshold && xOffset > 0) {
+                        int avatarScreenX = avatarPos.x - xOffset;
+                        int avatarScreenY = avatarPos.y - yOffset;
+                        
+                        if (avatarScreenX < scrollThreshold) {
                             xOffset = Math.max(0, avatarPos.x - scrollThreshold);
-                        } else if (avatarPos.x - xOffset >= DISPLAY_WIDTH - scrollThreshold && xOffset < WORLD_WIDTH - DISPLAY_WIDTH) {
+                        } else if (avatarScreenX >= DISPLAY_WIDTH - scrollThreshold) {
                             xOffset = Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH + scrollThreshold + 1);
                         }
                         
-                        if (avatarPos.y - yOffset < scrollThreshold && yOffset > 0) {
+                        if (avatarScreenY < scrollThreshold) {
                             yOffset = Math.max(0, avatarPos.y - scrollThreshold);
-                        } else if (avatarPos.y - yOffset >= DISPLAY_HEIGHT - scrollThreshold && yOffset < WORLD_HEIGHT - DISPLAY_HEIGHT) {
+                        } else if (avatarScreenY >= DISPLAY_HEIGHT - scrollThreshold) {
                             yOffset = Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT + scrollThreshold + 1);
+                        }
+                        
+                        avatarScreenX = avatarPos.x - xOffset;
+                        avatarScreenY = avatarPos.y - yOffset;
+                        
+                        if (avatarScreenX < 0) {
+                            xOffset = Math.max(0, avatarPos.x);
+                        } else if (avatarScreenX >= DISPLAY_WIDTH) {
+                            xOffset = Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH + 1);
+                        }
+                        
+                        if (avatarScreenY < 0) {
+                            yOffset = Math.max(0, avatarPos.y);
+                        } else if (avatarScreenY >= DISPLAY_HEIGHT) {
+                            yOffset = Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT + 1);
                         }
                     }
                 }
@@ -222,15 +300,28 @@ public class Main {
         
         In in = new In(file);
         if (!in.hasNextLine()) {
+            in.close();
             return null;
         }
         
-        long seed = Long.parseLong(in.readLine());
-        int avatarX = Integer.parseInt(in.readLine());
-        int avatarY = Integer.parseInt(in.readLine());
-        in.close();
-        
-        return new GameState(seed, new Position(avatarX, avatarY));
+        try {
+            long seed = Long.parseLong(in.readLine());
+            if (!in.hasNextLine()) {
+                in.close();
+                return null;
+            }
+            int avatarX = Integer.parseInt(in.readLine());
+            if (!in.hasNextLine()) {
+                in.close();
+                return null;
+            }
+            int avatarY = Integer.parseInt(in.readLine());
+            in.close();
+            return new GameState(seed, new Position(avatarX, avatarY));
+        } catch (NumberFormatException e) {
+            in.close();
+            return null;
+        }
     }
 
     private static class GameState {

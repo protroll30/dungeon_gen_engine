@@ -643,7 +643,9 @@ public class World {
                 worldWithAvatar[x][y] = world[x][y];
             }
         }
-        worldWithAvatar[avatarPos.x][avatarPos.y] = Tileset.AVATAR;
+        if (isValidPosition(avatarPos.x, avatarPos.y)) {
+            worldWithAvatar[avatarPos.x][avatarPos.y] = Tileset.AVATAR;
+        }
         return worldWithAvatar;
     }
 
