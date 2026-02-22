@@ -1,5 +1,10 @@
 package core;
 
+/**
+ * Immutable 2D coordinate representing a position in the world.
+ * Used throughout the codebase for tile positions, cave centers, and avatar location.
+ * Implements equals() and hashCode() for use in collections like HashSet and HashMap.
+ */
 public class Position {
     public final int x;
     public final int y;

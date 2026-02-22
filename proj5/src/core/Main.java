@@ -22,10 +22,15 @@ public class Main {
     private static final int TOTAL_HEIGHT = DISPLAY_HEIGHT + HUD_HEIGHT;  // Total window height
     private static final String SAVE_FILE = "save.txt";  // Save file location
 
+    /**
+     * Main entry point for the dungeon generation game.
+     * Initializes the renderer and runs the main menu loop.
+     */
     public static void main(String[] args) {
         TERenderer ter = new TERenderer();
         ter.initialize(DISPLAY_WIDTH, TOTAL_HEIGHT, 0, HUD_HEIGHT);
 
+        // Main menu loop - continues until user quits
         while (true) {
             char choice = showMainMenu(ter);
             if (choice == 'n') {
@@ -55,6 +60,11 @@ public class Main {
         }
     }
 
+    /**
+     * Displays the main menu and waits for user input.
+     * @param ter the renderer to use for display
+     * @return the character representing the user's menu choice ('n', 'l', 't', or 'q')
+     */
     private static char showMainMenu(TERenderer ter) {
         StdDraw.clear(Color.BLACK);
         Font font = new Font("Monaco", Font.BOLD, 30);
@@ -71,6 +81,7 @@ public class Main {
         
         StdDraw.show();
 
+        // Wait for valid menu selection
         while (true) {
             if (StdDraw.hasNextKeyTyped()) {
                 char key = Character.toLowerCase(StdDraw.nextKeyTyped());
@@ -82,6 +93,13 @@ public class Main {
         }
     }
 
+    /**
+     * Displays seed entry screen and collects numeric input from user.
+     * Accepts digits 0-9 and 's' to start.
+     * If no seed is entered (empty string), defaults to current timestamp.
+     * @param ter the renderer to use for display
+     * @return the seed value (user input or current timestamp)
+     */
     private static long showSeedEntry(TERenderer ter) {
         StringBuilder seedString = new StringBuilder();
         StdDraw.clear(Color.BLACK);
@@ -96,11 +114,13 @@ public class Main {
             if (StdDraw.hasNextKeyTyped()) {
                 char key = Character.toLowerCase(StdDraw.nextKeyTyped());
                 if (key == 's') {
+                    // If no seed entered, use current timestamp as default
                     if (seedString.length() == 0) {
                         return System.currentTimeMillis();
                     }
                     return Long.parseLong(seedString.toString());
                 } else if (key >= '0' && key <= '9') {
+                    // Append digit to seed string and update display
                     seedString.append(key);
                     StdDraw.clear(Color.BLACK);
                     StdDraw.text(DISPLAY_WIDTH / 2.0, TOTAL_HEIGHT * 0.6, "Enter Seed:");
@@ -113,6 +133,11 @@ public class Main {
         }
     }
 
+    /**
+     * Displays the tutorial/controls screen.
+     * Shows movement controls, command syntax, and other gameplay information.
+     * @param ter the renderer to use for display
+     */
     private static void showTutorial(TERenderer ter) {
         StdDraw.clear(Color.BLACK);
         Font titleFont = new Font("Monaco", Font.BOLD, 24);
@@ -123,6 +148,7 @@ public class Main {
         Font font = new Font("Monaco", Font.PLAIN, 16);
         StdDraw.setFont(font);
         
+        // Position text lines with consistent spacing
         double yPos = TOTAL_HEIGHT * 0.7;
         double lineSpacing = 1.2;
         
@@ -166,13 +192,23 @@ public class Main {
         }
     }
 
+    /**
+     * Main game loop for interactive gameplay.
+     * Handles player input, movement, camera scrolling, and rendering.
+     * Supports commands (colon-prefixed) and WASD movement.
+     * @param ter the renderer to use for display
+     * @param world the generated world to explore
+     * @param avatarPos starting position of the avatar
+     * @param seed the world generation seed (used for saving)
+     */
     private static void playGame(TERenderer ter, World world, Position avatarPos, long seed) {
         boolean colonPressed = false;
-        int scrollThreshold = 8;
+        int scrollThreshold = 8;  // Distance from edge before camera scrolls
+        // Initialize camera to center on avatar
         int xOffset = Math.max(0, Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH / 2));
         int yOffset = Math.max(0, Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT / 2));
-        String saveMessage = null;
-        int saveMessageFrames = 0;
+        String saveMessage = null;  // Optional message to display in HUD
+        int saveMessageFrames = 0;  // Frame counter for message display
         
         ter.initialize(DISPLAY_WIDTH, TOTAL_HEIGHT, 0, HUD_HEIGHT);
 
@@ -281,13 +317,25 @@ public class Main {
         }
     }
 
+    /**
+     * Draws the Heads-Up Display (HUD) at the top of the screen.
+     * Shows tile description under mouse cursor and optional save confirmation message.
+     * @param world the world to query for tile information
+     * @param avatarPos current avatar position (unused but kept for potential future use)
+     * @param xOffset current camera x offset
+     * @param yOffset current camera y offset
+     * @param saveMessage optional message to display (e.g., "Game saved")
+     */
     private static void drawHUD(World world, Position avatarPos, int xOffset, int yOffset, String saveMessage) {
+        // Get mouse position and convert to world coordinates
         double mouseX = StdDraw.mouseX();
         double mouseY = StdDraw.mouseY();
         
+        // Convert screen coordinates to world tile coordinates
         int tileX = (int) mouseX + xOffset;
         int tileY = (int) (mouseY - HUD_HEIGHT) + yOffset;
         
+        // Get tile description at mouse position
         String description = "nothing";
         if (tileX >= 0 && tileX < WORLD_WIDTH && tileY >= 0 && tileY < WORLD_HEIGHT && mouseY >= HUD_HEIGHT) {
             TETile[][] worldTiles = world.getWorld();
@@ -297,17 +345,29 @@ public class Main {
             }
         }
         
+        // Display tile description on left side of HUD
         StdDraw.setPenColor(Color.WHITE);
         Font font = new Font("Monaco", Font.PLAIN, 14);
         StdDraw.setFont(font);
         StdDraw.textLeft(1, TOTAL_HEIGHT - 0.5, description);
         
+        // Display save message on right side if present
         if (saveMessage != null) {
             StdDraw.setPenColor(Color.GREEN);
             StdDraw.textRight(DISPLAY_WIDTH - 1, TOTAL_HEIGHT - 0.5, saveMessage);
         }
     }
 
+    /**
+     * Saves the current game state to a file.
+     * File format (one value per line):
+     *   - seed (long)
+     *   - avatarX (int)
+     *   - avatarY (int)
+     * @param seed the world generation seed
+     * @param avatarPos the current avatar position
+     * @param filename the file to save to
+     */
     private static void saveGame(long seed, Position avatarPos, String filename) {
         Out out = new Out(filename);
         out.println(seed);
@@ -316,6 +376,15 @@ public class Main {
         out.close();
     }
 
+    /**
+     * Loads game state from a file.
+     * Expected file format (one value per line):
+     *   - seed (long)
+     *   - avatarX (int)
+     *   - avatarY (int)
+     * @param filename the file to load from
+     * @return GameState object if file exists and is valid, null otherwise
+     */
     private static GameState loadGame(String filename) {
         File file = new File(filename);
         if (!file.exists()) {
@@ -329,6 +398,7 @@ public class Main {
         }
         
         try {
+            // Parse file contents with validation
             long seed = Long.parseLong(in.readLine());
             if (!in.hasNextLine()) {
                 in.close();
@@ -343,11 +413,16 @@ public class Main {
             in.close();
             return new GameState(seed, new Position(avatarX, avatarY));
         } catch (NumberFormatException e) {
+            // File corrupted or invalid format
             in.close();
             return null;
         }
     }
 
+    /**
+     * Immutable container for game state data.
+     * Stores the world seed and avatar position for save/load functionality.
+     */
     private static class GameState {
         final long seed;
         final Position avatarPos;
