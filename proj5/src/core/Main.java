@@ -12,13 +12,15 @@ import java.awt.Font;
 import java.io.File;
 
 public class Main {
-    private static final int WORLD_WIDTH = World.getWidth();
-    private static final int WORLD_HEIGHT = World.getHeight();
-    private static final int DISPLAY_WIDTH = 60;
-    private static final int DISPLAY_HEIGHT = 40;
-    private static final int HUD_HEIGHT = 2;
-    private static final int TOTAL_HEIGHT = DISPLAY_HEIGHT + HUD_HEIGHT;
-    private static final String SAVE_FILE = "save.txt";
+    // World dimensions (full world size)
+    private static final int WORLD_WIDTH = World.getWidth();  // 200 tiles
+    private static final int WORLD_HEIGHT = World.getHeight();  // 120 tiles
+    // Display/viewport dimensions (visible area)
+    private static final int DISPLAY_WIDTH = 60;  // Visible viewport width
+    private static final int DISPLAY_HEIGHT = 40;  // Visible viewport height
+    private static final int HUD_HEIGHT = 2;  // Height reserved for HUD at top
+    private static final int TOTAL_HEIGHT = DISPLAY_HEIGHT + HUD_HEIGHT;  // Total window height
+    private static final String SAVE_FILE = "save.txt";  // Save file location
 
     public static void main(String[] args) {
         TERenderer ter = new TERenderer();
@@ -36,7 +38,11 @@ public class Main {
                 if (savedState != null) {
                     World world = new World(savedState.seed);
                     Position avatarPos = savedState.avatarPos;
+                    // Validate saved position is still a valid floor tile
+                    // World generation is deterministic, but safety check prevents crashes
+                    // if save file is corrupted or world parameters changed
                     if (!world.canMoveTo(avatarPos.x, avatarPos.y)) {
+                        // Fallback to default start position
                         avatarPos = world.getAvatarStartPosition();
                     }
                     playGame(ter, world, avatarPos, savedState.seed);
@@ -174,7 +180,10 @@ public class Main {
             if (StdDraw.hasNextKeyTyped()) {
                 char key = Character.toLowerCase(StdDraw.nextKeyTyped());
                 
+                // Command system: colon (:) followed by letter
+                // :Q = save and quit, :M = save and menu, :N = new world
                 if (colonPressed) {
+                    // Process command after colon
                     if (key == 'q') {
                         saveGame(seed, avatarPos, SAVE_FILE);
                         System.exit(0);
@@ -186,6 +195,7 @@ public class Main {
                         world = new World(newSeed);
                         avatarPos = world.getAvatarStartPosition();
                         seed = newSeed;
+                        // Reset camera to center on new avatar position
                         xOffset = Math.max(0, Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH / 2));
                         yOffset = Math.max(0, Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT / 2));
                         saveMessage = "New world generated";
@@ -193,8 +203,10 @@ public class Main {
                     }
                     colonPressed = false;
                 } else if (key == ':') {
+                    // Colon pressed, wait for next key to form command
                     colonPressed = true;
                 } else {
+                    // Not a command, reset colon state and process movement
                     colonPressed = false;
                     Position newPos = avatarPos;
                     if (key == 'w') {
@@ -210,21 +222,33 @@ public class Main {
                     if (world.canMoveTo(newPos.x, newPos.y)) {
                         avatarPos = newPos;
                         
+                        // Camera follows avatar with scroll threshold
+                        // When avatar gets within scrollThreshold tiles of screen edge, camera scrolls
                         int avatarScreenX = avatarPos.x - xOffset;
                         int avatarScreenY = avatarPos.y - yOffset;
                         
+                        // Scroll left if avatar approaches left edge
                         if (avatarScreenX < scrollThreshold) {
+                            // Clamp to world boundaries
                             xOffset = Math.max(0, avatarPos.x - scrollThreshold);
-                        } else if (avatarScreenX >= DISPLAY_WIDTH - scrollThreshold) {
+                        }
+                        // Scroll right if avatar approaches right edge
+                        else if (avatarScreenX >= DISPLAY_WIDTH - scrollThreshold) {
+                            // Calculate new offset, ensuring we don't show out-of-bounds
                             xOffset = Math.min(WORLD_WIDTH - DISPLAY_WIDTH, avatarPos.x - DISPLAY_WIDTH + scrollThreshold + 1);
                         }
                         
+                        // Scroll down if avatar approaches bottom edge
                         if (avatarScreenY < scrollThreshold) {
                             yOffset = Math.max(0, avatarPos.y - scrollThreshold);
-                        } else if (avatarScreenY >= DISPLAY_HEIGHT - scrollThreshold) {
+                        }
+                        // Scroll up if avatar approaches top edge
+                        else if (avatarScreenY >= DISPLAY_HEIGHT - scrollThreshold) {
                             yOffset = Math.min(WORLD_HEIGHT - DISPLAY_HEIGHT, avatarPos.y - DISPLAY_HEIGHT + scrollThreshold + 1);
                         }
                         
+                        // Additional boundary check: if avatar somehow got outside viewport,
+                        // immediately center camera on avatar
                         avatarScreenX = avatarPos.x - xOffset;
                         avatarScreenY = avatarPos.y - yOffset;
                         
