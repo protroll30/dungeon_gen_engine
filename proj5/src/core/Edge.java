@@ -1,5 +1,10 @@
 package core;
 
+/**
+ * Represents an edge between two caves in the connectivity graph.
+ * Used for Minimum Spanning Tree (MST) construction to connect all caves.
+ * Edges are comparable by distance, allowing them to be sorted for Kruskal's algorithm.
+ */
 public class Edge implements Comparable<Edge> {
     public final int cavern1Index;
     public final int cavern2Index;
@@ -11,6 +16,11 @@ public class Edge implements Comparable<Edge> {
         this.distance = distance;
     }
 
+    /**
+     * Compares edges by distance for sorting in MST algorithm.
+     * @param other the edge to compare to
+     * @return negative if this edge is shorter, positive if longer, 0 if equal
+     */
     @Override
     public int compareTo(Edge other) {
         return Integer.compare(this.distance, other.distance);

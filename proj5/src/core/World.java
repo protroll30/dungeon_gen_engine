@@ -36,6 +36,10 @@ public class World {
         generateWorld();
     }
 
+    /**
+     * Main world generation pipeline.
+     * Executes all generation steps in order to create a complete, connected dungeon.
+     */
     private void generateWorld() {
         initializeGrid();
         pickCaveCenters();
@@ -47,6 +51,11 @@ public class World {
         cleanBorders();
         removeOrphanedWalls();
     }
+    
+    /**
+     * Initializes the world grid to all NOTHING tiles.
+     * This is the starting state before any generation occurs.
+     */
     private void initializeGrid() {
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
@@ -94,9 +103,14 @@ public class World {
         }
     }
 
+    /**
+     * Digs all caves at their selected center positions.
+     * 70% probability for rectangular rooms, 30% for compact rooms.
+     */
     private void digCaves() {
         for (Position center : cavernCenters) {
             Cavern cavern = new Cavern(center);
+            // 70% chance for rectangular rooms, 30% for compact rooms
             boolean isRectangular = RandomUtils.bernoulli(rng, 0.7);
             if (isRectangular) {
                 digRectangularRoom(cavern, center);
@@ -108,7 +122,13 @@ public class World {
         }
     }
 
+    /**
+     * Digs a rectangular room centered at the given position.
+     * Room dimensions are randomized within specified bounds.
+     * Skips placement if room would overlap with existing floors.
+     */
     private void digRectangularRoom(Cavern cavern, Position center) {
+        // Room size constraints
         int minWidth = 5;
         int maxWidth = 12;
         int minHeight = 5;
@@ -117,9 +137,12 @@ public class World {
         int width = RandomUtils.uniform(rng, minWidth, maxWidth + 1);
         int height = RandomUtils.uniform(rng, minHeight, maxHeight + 1);
         
+        // Calculate room position, ensuring it stays within world bounds
+        // Center the room around the center position
         int startX = Math.max(1, Math.min(center.x - width / 2, WIDTH - width - 1));
         int startY = Math.max(1, Math.min(center.y - height / 2, HEIGHT - height - 1));
         
+        // Check for overlap with existing floors
         boolean canPlace = true;
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
@@ -131,8 +154,10 @@ public class World {
             if (!canPlace) break;
         }
         
+        // Skip if overlap detected
         if (!canPlace) return;
         
+        // Dig the room: convert all tiles in rectangle to floor
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
                 if (isValidPosition(x, y) && x > 0 && x < WIDTH - 1 && y > 0 && y < HEIGHT - 1) {
@@ -144,13 +169,21 @@ public class World {
         }
     }
 
+    /**
+     * Digs a compact room (dense rectangular region) centered at the given position.
+     * Similar to rectangular rooms but with different size constraints.
+     * Note: targetSize parameter is currently unused but reserved for future use.
+     */
     private void digCompactRoom(Cavern cavern, Position start, int targetSize) {
+        // Compact rooms are smaller and denser than rectangular rooms
         int width = RandomUtils.uniform(rng, 5, 10);
         int height = RandomUtils.uniform(rng, 5, 8);
         
+        // Calculate room position, ensuring it stays within world bounds
         int startX = Math.max(1, Math.min(start.x - width / 2, WIDTH - width - 1));
         int startY = Math.max(1, Math.min(start.y - height / 2, HEIGHT - height - 1));
         
+        // Check for overlap with existing floors
         boolean canPlace = true;
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
@@ -162,8 +195,10 @@ public class World {
             if (!canPlace) break;
         }
         
+        // Skip if overlap detected
         if (!canPlace) return;
         
+        // Dig the room: only convert NOTHING tiles to floor (preserves existing walls)
         for (int x = startX; x < startX + width; x++) {
             for (int y = startY; y < startY + height; y++) {
                 if (isValidPosition(x, y) && x > 0 && x < WIDTH - 1 && y > 0 && y < HEIGHT - 1) {
@@ -426,18 +461,25 @@ public class World {
             }
         }
     }
+    /**
+     * Builds walls around all floor tiles.
+     * Places walls in all 8 neighboring positions (including diagonals) of floor tiles
+     * that are currently NOTHING. This creates the boundary between floors and empty space.
+     */
     private void buildWalls() {
+        // Check all 8 neighbors (including diagonals)
         int[] dx = {-1, -1, -1, 0, 0, 1, 1, 1};
         int[] dy = {-1, 0, 1, -1, 1, -1, 0, 1};
 
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
                 if (world[x][y].description().equals("floor")) {
+                    // Place walls in all empty neighboring positions
                     for (int i = 0; i < 8; i++) {
                         int nx = x + dx[i];
                         int ny = y + dy[i];
                         if (isValidPosition(nx, ny) && world[nx][ny] == Tileset.NOTHING) {
-                        world[nx][ny] = Tileset.WALL;
+                            world[nx][ny] = Tileset.WALL;
                         }
                     }
                 }
@@ -445,6 +487,10 @@ public class World {
         }
     }
 
+    /**
+     * Ensures the world is fully connected.
+     * If disconnected components are detected, automatically connects them with tunnels.
+     */
     private void ensureConnectivity() {
         if (!isWorldConnected()) {
             connectDisconnectedComponents();
@@ -634,7 +680,13 @@ public class World {
         }
     }
 
+    /**
+     * Cleans up the world borders and ensures all floor tiles have proper wall boundaries.
+     * Converts any floor tiles on world edges to walls, and adds walls to any empty
+     * spaces adjacent to floor tiles that were missed in the initial wall building.
+     */
     private void cleanBorders() {
+        // Convert floor tiles on top and bottom edges to walls
         for (int x = 0; x < WIDTH; x++) {
             if (world[x][0] == Tileset.FLOOR) {
                 world[x][0] = Tileset.WALL;
@@ -644,6 +696,7 @@ public class World {
             }
         }
 
+        // Convert floor tiles on left and right edges to walls
         for (int y = 0; y < HEIGHT; y++) {
             if (world[0][y] == Tileset.FLOOR) {
                 world[0][y] = Tileset.WALL;
@@ -653,6 +706,8 @@ public class World {
             }
         }
 
+        // Fill in any remaining empty spaces adjacent to floors (4-directional)
+        // This catches any NOTHING tiles that should be walls
         for (int x = 1; x < WIDTH - 1; x++) {
             for (int y = 1; y < HEIGHT - 1; y++) {
                 if (world[x][y].description().equals("floor")) {
@@ -767,13 +822,21 @@ public class World {
         return floorTiles.get(0);
     }
 
+    /**
+     * Creates a copy of the world with the avatar placed at the specified position.
+     * Used for rendering - the avatar is overlaid on top of the world tiles.
+     * @param avatarPos the position where the avatar should be placed
+     * @return a copy of the world grid with avatar tile at the specified position
+     */
     public TETile[][] getWorldWithAvatar(Position avatarPos) {
         TETile[][] worldWithAvatar = new TETile[WIDTH][HEIGHT];
+        // Copy the world
         for (int x = 0; x < WIDTH; x++) {
             for (int y = 0; y < HEIGHT; y++) {
                 worldWithAvatar[x][y] = world[x][y];
             }
         }
+        // Place avatar at specified position (if valid)
         if (isValidPosition(avatarPos.x, avatarPos.y)) {
             worldWithAvatar[avatarPos.x][avatarPos.y] = Tileset.AVATAR;
         }
@@ -794,6 +857,13 @@ public class World {
         return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT;
     }
 
+    /**
+     * Calculates Manhattan distance between two positions.
+     * Used for cave-to-cave distance calculations in MST construction.
+     * @param a first position
+     * @param b second position
+     * @return Manhattan distance (sum of absolute differences in x and y)
+     */
     private int manhattanDistance(Position a, Position b) {
         return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     }
