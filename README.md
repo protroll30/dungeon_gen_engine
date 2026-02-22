@@ -404,4 +404,3 @@ The system is production-ready, well-documented, and architected for future enha
 **Complexity**: O(W×H + C² log C) time, O(W×H) space  
 **World Size**: 200×120 tiles, 30-45 interconnected caverns  
 **Generation Time**: <100ms per world
-
